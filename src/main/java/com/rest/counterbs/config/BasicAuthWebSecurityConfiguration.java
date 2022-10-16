@@ -24,7 +24,7 @@ public class BasicAuthWebSecurityConfiguration {
 
 	@Bean
 	public InMemoryUserDetailsManager userDetailsService() {
-		UserDetails user = User.withUsername("user").password("{noop}password").roles("USER").build();
+		UserDetails user = User.withUsername("optus").password("{noop}candidates").roles("USER").build();
 		return new InMemoryUserDetailsManager(user);
 	}
 	
