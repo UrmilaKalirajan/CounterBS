@@ -1,5 +1,9 @@
 package com.rest.counterbs.controller;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -11,9 +15,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
@@ -74,21 +83,42 @@ public class CounterAPI {
 		return ResponseEntity.status(HttpStatus.OK).body(counterResponse);
 	}
 
-	@GetMapping(path = "/top/{id}", produces = "application/json")
-	public ResponseEntity<List<String>> getTopCount(@PathVariable Integer id) {
-		List<String> responseList = new ArrayList<String>();
-		LinkedHashMap<String, Integer> countByWordSorted = getCount();
-		int i = 1;
-		for (Map.Entry<String, Integer> entry : countByWordSorted.entrySet()) {
+	@GetMapping(path = "/top/{id}")
+	public ResponseEntity<Resource> getTopCount(@PathVariable Integer id) {
 
-			responseList.add(entry.getKey() + "|" + entry.getValue());
-			if (i == id) {
-				break;
+		LinkedHashMap<String, Integer> countByWordSorted = getCount();
+		ByteArrayInputStream byteArrayOutputStream;
+
+		try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+				CSVPrinter csvPrinter = new CSVPrinter(new PrintWriter(out), CSVFormat.DEFAULT);) {
+			int i = 1;
+			for (Map.Entry<String, Integer> entry : countByWordSorted.entrySet()) {
+
+				List<String> response = new ArrayList<String>();
+				response.add(entry.getKey());
+				response.add(entry.getValue().toString());
+				csvPrinter.printRecord(response);
+				if (i == id) {
+					break;
+				}
+				i++;
 			}
-			i++;
+
+			csvPrinter.flush();
+			byteArrayOutputStream = new ByteArrayInputStream(out.toByteArray());
+		} catch (IOException e) {
+			throw new RuntimeException(e.getMessage());
 		}
 
-		return ResponseEntity.status(HttpStatus.OK).body(responseList);
+		InputStreamResource fileInputStream = new InputStreamResource(byteArrayOutputStream);
+
+		String csvFileName = "topcount.csv";
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + csvFileName);
+		headers.set(HttpHeaders.CONTENT_TYPE, "text/csv");
+		return new ResponseEntity<>(fileInputStream, headers, HttpStatus.OK);
 	}
 
 	private LinkedHashMap<String, Integer> getCount() {
